@@ -5,23 +5,24 @@ Save a script containing the query you used to answer each question.
 */
 
 --1. How many rows are in the names table?
-SELECT * 
+SELECT COUNT(*) 
 FROM names;
 
 --Total Nuber of Rows 1957046
 
 
 --2. How many total registered people appear in the dataset?
-SELECT SUM(num_registered) as total_registered
+SELECT SUM(num_registered) AS total_registered
 FROM names;
 --Total registered 351653025
 
 
 --3. Which name had the most appearances in a single year in the dataset?
 
-SELECT num_registered, name, year 
+SELECT  name, year, num_registered
 FROM names 
-ORDER BY num_registered DESC;
+ORDER BY num_registered DESC
+LIMIT 1;
 -- Linda had the most appearances in 1947
 
 
@@ -42,7 +43,7 @@ LIMIT 1;
 
 
 --6. How many different (distinct) names are contained in the dataset?
-SELECT DISTINCT name
+SELECT COUNT(DISTINCT name) as total_distinct_names
 FROM names;
 --Total 98400 distinct names contained in the data set
 
@@ -56,34 +57,55 @@ ORDER BY total_registered DESC;
 
 
 --8. What are the most popular male and female names overall (i.e., the most total registrations)?
-SELECT SUM(num_registered) as total_registered, name,gender  
+SELECT DISTINCT ON (gender) gender , name, SUM(num_registered) as total_registered   --DISTINCT ON picks TOP name per gender
 FROM names
 GROUP BY name,gender
+ORDER BY gender ,total_registered DESC;
+
+
+-- other way
+SELECT name, SUM(num_registered) AS total_registered
+FROM names
+WHERE gender='F'
+GROUP BY name
 ORDER BY total_registered DESC
-LIMIT 5;
--- Top 5 James,John,Robert,Michael,Mary
+LIMIT 1;
+
+SELECT name, SUM(num_registered) AS total_registered
+FROM names
+WHERE gender='M'
+GROUP BY name
+ORDER BY total_registered DESC
+LIMIT 1;
 
 
 --9. What are the most popular boy and girl names of the first decade of the 2000s (2000 - 2009)?
-SELECT SUM(num_registered) as total_registered, name,year   --gender?
+SELECT  name,year,SUM(num_registered) as total_registered,   --gender?
 FROM names
 WHERE year BETWEEN 2000 AND 2009
 GROUP BY name,year
 ORDER BY total_registered DESC;
 
+-- other way
+SELECT DISTINCT ON (gender) gender , name, SUM(num_registered) as total_registered   --DISTINCT ON picks TOP name per gender
+FROM names
+WHERE year BETWEEN 2000 AND 2009
+GROUP BY name,gender
+ORDER BY gender ,total_registered DESC;
+
 
 --10. Which year had the most variety in names (i.e. had the most distinct names)?
-SELECT DISTINCT COUNT(name) as dist_names ,year
+SELECT  year,COUNT(DISTINCT name) as dist_names 
 FROM names
 GROUP BY year
 ORDER BY dist_names DESC
 LIMIT 1;
--- IN 2008 with 35079 distinct names
+-- IN 2008 with 32518 distinct names
 
 --11. What is the most popular name for a girl that starts with the letter X?
 SELECT name, SUM(num_registered) as total_registered
 FROM names
-WHERE gender = 'F' and name like 'X%'
+WHERE gender = 'F' and name ILIKE 'X%'  --ILIKE not case sensitive, LIKE case sensitive
 GROUP BY name
 ORDER BY total_registered DESC
 LIMIT 1;
@@ -94,23 +116,29 @@ LIMIT 1;
 SELECT DISTINCT name
 FROM names
 WHERE name  LIKE 'Q%'
-  AND name not LIKE 'Qu%'
+  AND name NOT LIKE '_u%'
+
+-- by using substrings
+SELECT DISTINCT name
+FROM people 
+WHERE name LIKE 'Q%'
+ AND substring(name, 2, 1) <> 'u';
 --Total 46 distinct names starts with 'Q' but not 'QU'
+
 
 --13. Which is the more popular spelling between "Stephen" and "Steven"? Use a single query to answer this question.
 SELECT SUM(num_registered) as total_registered, name
 FROM names
-WHERE name = 'Stephen' OR name = 'Steven'
+WHERE name = 'Stephen' OR name = 'Steven'  --or name IN  can be used 
 GROUP BY name
 ORDER BY total_registered DESC;
 -- 'Steven' is the most popular  
 
 --14. Find all names that are "unisex" - that is all names that have been used both for boys and for girls.
-
 SELECT name
 FROM names
 GROUP BY name
-HAVING COUNT(DISTINCT gender) = 2;
+HAVING COUNT(DISTINCT gender) > 1;   --Filter names if gender counter is 2('M','F')
 
 
 
@@ -119,27 +147,45 @@ HAVING COUNT(DISTINCT gender) = 2;
 SELECT COUNT(DISTINCT year), name
 FROM names
 GROUP BY name
-HAVING COUNT(DISTINCT year) = 2018-1880+1 ;
+HAVING COUNT(DISTINCT year) = 2018-1880+1 ;    -- Count distinct years and 2018-1880+1 it includes both the years
+--HAVING COUNT(DISTINCT year) > 2018-1880  ; 
 
+--using Sub query
+SELECT name
+ FROM names
+GROUP BY name 
+HAVING count(DISTINCT year) = (
+ SELECT count(DISTINCT year)
+ FROM names
+ );
 
 --16. Find all names that have only appeared in one year.
 
 SELECT  name
 FROM names
 GROUP BY name
-HAVING COUNT(DISTINCT year) = 1 ;
+HAVING COUNT(DISTINCT year) = 1 ;  
+
+--using Sub query
+SELECT name, gender
+FROM names
+WHERE name IN (SELECT name
+FROM names
+GROUP BY name
+HAVING COUNT(DISTINCT year) = 1
+ORDER BY name);
 
 
 --17. Find all names that only appeared in the 1950s.
 
-SELECT  name, year
+SELECT  name, MIN(year) as min_year, MAX(year) as max_year
 FROM names
-GROUP BY name, year
+GROUP BY name
 HAVING MIN(year)>= 1950 AND MAX(year)<=1959;
 
 --18. Find all names that made their first appearance in the 2010s.
 
-SELECT name, MIN(year) as first_appearance
+SELECT name, MIN(year) AS first_appearance
 FROM names
 GROUP BY name
 HAVING MIN(year) BETWEEN 2010 AND 2018
@@ -147,11 +193,11 @@ HAVING MIN(year) BETWEEN 2010 AND 2018
 
 --19. Find the names that have not been used in the longest.
 
-SELECT name, MAX(year) AS last_used_year
+SELECT name, MAX(year) AS last_used_year, (2026 - MAX(year)) AS years_old
 FROM names
 GROUP BY name
- HAVING MAX(year) BETWEEN 1880 AND 2010
- ORDER BY last_used_year;
+ORDER BY last_used_year ASC
+LIMIT 10;
 
 
 
@@ -165,6 +211,80 @@ GROUP BY name
 ORDER BY total_years DESC
 LIMIT 20;
 
+
+
+--Bonus
+-- For this first set of questions, you might find it useful to refer to the PostgreSQL string functions (https://www.postgresql.org/docs/current/functions-string.html).
+
+-- 1. Find the longest name contained in this dataset. What do you notice about the long names?
+SELECT * 
+FROM names
+LIMIT 5;
+
+SELECT name, length(name) AS max_length   --length/char_length (returns number of characters in text)
+FROM names
+ORDER BY max_length DESC
+LIMIT 25;
+-- There are many longest names with character length in a name of 15
+
+
+-- 2. How many names are palindromes (i.e. read the same backwards and forwards, such as Bob and Elle)?
+
+SELECT  name, reverse(name)
+FROM names
+WHERE upper(name) = upper(reverse(name));  --Reverse function reverse the text
+--There are total 4091 palindromes
+
+
+-- 3. Find all names that contain no vowels (for this question, we'll count a,e,i,o,u, and y as vowels). (Hint: you might find this page helpful: https://www.postgresql.org/docs/current/functions-matching.html)
+SELECT name
+FROM names
+WHERE name !~* '[aeiouy]';    --[aeiouy] matches any single vowel, !~ it represents not equals to, * represents case insensitivity
+
+
+-- 4. How many double-letter names show up in the dataset? Double-letter means the same letter repeated back-to-back, like Matthew or Aaron. Are there any triple-letter names?
+SELECT COUNT (DISTINCT name) as double_letter_names
+FROM names
+WHERE name ~* '([a-z])\1'    -- ([a-z]) capture any letter from a to z , '\1' match the same letter again, ~* case insensitive match
+
+--Let's check , if there are any thriple letter names
+SELECT COUNT (DISTINCT name) as triple_letter_names
+FROM names
+WHERE name ~* '([a-z])\1\1'  -- \1\1 same letter repeated two more times
+
+
+-- For the next few questions, you'll likely need to make use of subqueries. A subquery is a SQL query nested inside another query. You'll learn more about subqueries over the next few DataCamp assignments.
+
+-- 5. On question 17 of the first part of the exercise, you found names that only appeared in the 1950s. Now, find all names that did not appear in the 1950s but were used both before and after the 1950s. We'll answer this question in two steps.
+-- 	a. First, write a query that returns all names that appeared during the 1950s.
+-- 	b. Now, make use of this query along with the IN keyword in order the find all names that did not appear in the 1950s but which were used both before and after the 1950s. See the example "A subquery with the IN operator." on this page: https://www.dofactory.com/sql/subquery.
+	
+-- 6. In question 16, you found how many names appeared in only one year. Which year had the highest number of names that only appeared once?
+
+-- 7. Which year had the most new names (names that hadn't appeared in any years before that year)? For this question, you might find it useful to write a subquery and then select from this subquery. See this page about using subqueries in the from clause: https://www.geeksforgeeks.org/sql-sub-queries-clause/
+
+-- 8. Is there more variety (more distinct names) for females or for males? Is this true for all years or are their any years where this is reversed? Hint: you may need to make use of multiple subqueries and JOIN them in order to answer this question.
+
+-- 9. Which names are closest to being evenly split between male and female usage? For this question, consider only names that have been used at least 10000 times in total. 
+
+-- For the last questions, you might find window functions useful (see https://www.postgresql.org/docs/current/sql-expressions.html#SYNTAX-WINDOW-FUNCTIONS and https://www.postgresql.org/docs/current/functions-window.html for a list of window function available in PostgreSQL). A window function is like an aggregate function in that it can be applied across a group, but a window function does not collapse each group down to a single summary statistic. The groupings for a window function are specified using the PARTITION BY keyword (and can include an ORDER BY when it is needed). The PARTITION BY and ORDER BY associated with a window function are CONTAINED in an OVER clause.
+-- For example, to rank each row by the value of num_registered, we can use the query
+-- ```
+-- SELECT name, year, num_registered, RANK() OVER(ORDER BY num_registered DESC)
+-- FROM names;
+-- ```
+
+-- If I want to rank within gender, I can add a PARTITION BY:  
+-- ```
+-- SELECT name, year, num_registered, RANK() OVER(PARTITION BY gender ORDER BY num_registered DESC)
+-- FROM names;
+-- ```
+
+-- 10. Which names have been among the top 25 most popular names for their gender in every single year contained in the names table? Hint: you may have to combine a window function and a subquery to answer this question.
+
+-- 11. Find the name that had the biggest gap between years that it was used. 
+
+-- 12. Have there been any names that were not used in the first year of the dataset (1880) but which made it to be the most-used name for its gender in some year? Difficult follow-up: What is the shortest amount of time that a name has gone from not being used at all to being the number one used name for its gender in a year?
 
 
 
